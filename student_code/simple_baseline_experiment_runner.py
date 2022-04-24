@@ -2,6 +2,9 @@ from student_code.simple_baseline_net import SimpleBaselineNet
 from student_code.experiment_runner_base import ExperimentRunnerBase
 from student_code.vqa_dataset import VqaDataset
 
+import torchvision
+import torch
+import ipdb
 
 class SimpleBaselineExperimentRunner(ExperimentRunnerBase):
     """
@@ -13,7 +16,16 @@ class SimpleBaselineExperimentRunner(ExperimentRunnerBase):
 
         ############ 2.3 TODO: set up transform
 
-        transform = None
+        # want N x 3 x 224 x 224
+
+        transform = torchvision.transforms.Compose([
+            # todo: normalize to 0,1?
+            # todo: tranpose axes?
+            # torchvision.transforms.Resize((3,224,224)),
+            torchvision.transforms.ToTensor(),
+            torchvision.transforms.Resize((224,224)),
+            torchvision.transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+        ])
 
         ############
 
@@ -23,8 +35,8 @@ class SimpleBaselineExperimentRunner(ExperimentRunnerBase):
                                    image_filename_pattern="COCO_train2014_{}.jpg",
                                    transform=transform,
                                    ############ 2.4 TODO: fill in the arguments
-                                   question_word_to_id_map='change this argument',
-                                   answer_to_id_map='change this argument',
+                                   question_word_to_id_map=None,
+                                   answer_to_id_map=None,
                                    ############
                                    )
         val_dataset = VqaDataset(image_dir=test_image_dir,
@@ -33,16 +45,28 @@ class SimpleBaselineExperimentRunner(ExperimentRunnerBase):
                                  image_filename_pattern="COCO_val2014_{}.jpg",
                                  transform=transform,
                                  ############ 2.4 TODO: fill in the arguments
-                                 question_word_to_id_map='change this argument',
-                                 answer_to_id_map='change this argument',
+                                 question_word_to_id_map=None,
+                                 answer_to_id_map=None,
                                  ############
                                  )
 
-        model = SimpleBaselineNet()
+        # model = SimpleBaselineNet(num_words=len(train_dataset.question_word_to_id_map))
+        model = SimpleBaselineNet(
+            num_q_words=train_dataset.question_word_list_length,
+            num_a_words=train_dataset.answer_list_length,
+        )
 
         super().__init__(train_dataset, val_dataset, model, batch_size, num_epochs, num_data_loader_workers)
 
         ############ 2.5 TODO: set up optimizer
+
+        word_parameters = list(model.word_feature_extractor.parameters()) + \
+        list(model.image_feature_extractor.parameters())
+          #list(model.googlenet_features.parameters()) + \
+
+        self.word_optimizer = torch.optim.SGD(word_parameters, lr=0.8, momentum=0.9)
+        self.softmax_optimizer = torch.optim.SGD(model.classifier.parameters(), lr=0.01, momentum=0.9)
+
 
         ############
 
@@ -50,5 +74,21 @@ class SimpleBaselineExperimentRunner(ExperimentRunnerBase):
     def _optimize(self, predicted_answers, true_answer_ids):
         ############ 2.7 TODO: compute the loss, run back propagation, take optimization step.
 
-        ############
-        raise NotImplementedError()
+        # loss = predicted_answers - true_answer_ids
+        # loss = loss * loss
+        # loss = loss.norm()
+        loss = torch.nn.CrossEntropyLoss()(predicted_answers, true_answer_ids)
+        torch.nn.utils.clip_grad_norm_(self._model.parameters(), max_norm=20)
+        # self._model.weight.data = torch.clamp(self._model.weight.data , -1500, 1500)
+
+
+
+        self.word_optimizer.zero_grad()
+        self.softmax_optimizer.zero_grad()
+        loss.backward()
+        self.word_optimizer.step()
+        self.softmax_optimizer.step()
+        return loss
+
+        ############ 
+        # raise NotImplementedError()

@@ -26,7 +26,7 @@ def googlenet(pretrained=False, **kwargs):
             kwargs['transform_input'] = True
         kwargs['init_weights'] = False
         model = GoogLeNet(**kwargs)
-        model.load_state_dict(model_zoo.load_url(model_urls['googlenet']))
+        model.load_state_dict(model_zoo.load_url(model_urls['googlenet']), strict=False)
         return model
 
     return GoogLeNet(**kwargs)
@@ -58,12 +58,12 @@ class GoogLeNet(nn.Module):
 
         self.inception5a = Inception(832, 256, 160, 320, 32, 128, 128)
         self.inception5b = Inception(832, 384, 192, 384, 48, 128, 128)
-        if aux_logits:
-            self.aux1 = InceptionAux(512, num_classes)
-            self.aux2 = InceptionAux(528, num_classes)
+        # if aux_logits:
+        #     self.aux1 = InceptionAux(512, num_classes)
+        #     self.aux2 = InceptionAux(528, num_classes)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.dropout = nn.Dropout(0.4)
-        self.fc = nn.Linear(1024, num_classes)
+        # self.dropout = nn.Dropout(0.4)
+        # self.fc = nn.Linear(1024, num_classes)
 
         if init_weights:
             self._initialize_weights()
@@ -108,8 +108,8 @@ class GoogLeNet(nn.Module):
         # N x 480 x 14 x 14
         x = self.inception4a(x)
         # N x 512 x 14 x 14
-        if self.training and self.aux_logits:
-            aux1 = self.aux1(x)
+        # if self.training and self.aux_logits:
+        #     aux1 = self.aux1(x)
 
         x = self.inception4b(x)
         # N x 512 x 14 x 14
@@ -117,8 +117,8 @@ class GoogLeNet(nn.Module):
         # N x 512 x 14 x 14
         x = self.inception4d(x)
         # N x 528 x 14 x 14
-        if self.training and self.aux_logits:
-            aux2 = self.aux2(x)
+        # if self.training and self.aux_logits:
+        #     aux2 = self.aux2(x)
 
         x = self.inception4e(x)
         # N x 832 x 14 x 14
@@ -130,14 +130,14 @@ class GoogLeNet(nn.Module):
         # N x 1024 x 7 x 7
 
         x = self.avgpool(x)
-        # N x 1024 x 1 x 1
-        x = x.view(x.size(0), -1)
-        # N x 1024
-        x = self.dropout(x)
-        x = self.fc(x)
-        # N x 1000 (num_classes)
-        if self.training and self.aux_logits:
-            return aux1, aux2, x
+        # # N x 1024 x 1 x 1
+        # x = x.view(x.size(0), -1)
+        # # N x 1024
+        # x = self.dropout(x)
+        # x = self.fc(x)
+        # # N x 1000 (num_classes)
+        # if self.training and self.aux_logits:
+        #     return aux1, aux2, x
         return x
 
 

@@ -1,3 +1,4 @@
+from decimal import InvalidContext
 import os
 import torch
 
@@ -5,6 +6,10 @@ from PIL import Image
 from torch.utils.data import Dataset
 from external.vqa.vqa import VQA
 
+import numpy as np
+import scipy.stats
+import torchvision
+import ipdb
 
 class VqaDataset(Dataset):
     """
@@ -43,22 +48,48 @@ class VqaDataset(Dataset):
                 pass
 
         # Create the question map if necessary
+        self.questions_dict = {}
+        sentences = [] 
+        for d in self._vqa.questions["questions"]:
+            sentences.append(d["question"])
+
         if question_word_to_id_map is None:
             ############ 1.6 TODO
 
+            # sentences = [d["question"] for d in self._vqa.questions["questions"]]
+            wordlist = self._create_word_list(sentences)
+            self.question_word_to_id_map = self._create_id_map(wordlist, self.question_word_list_length)
 
             ############
-            raise NotImplementedError()
+            # raise NotImplementedError()
         else:
             self.question_word_to_id_map = question_word_to_id_map
+
+        for d in self._vqa.questions["questions"]:            
+            question_str = d["question"]
+            question_result = torch.zeros(self.question_word_list_length)
+            for word in question_str.split(" "):
+                wordlower = word.lower()
+                if wordlower in self.question_word_to_id_map.keys():
+                    question_result[self.question_word_to_id_map[wordlower]] = 1.
+            self.questions_dict[d["question_id"]] = question_result # d["question"]
 
         # Create the answer map if necessary
         if answer_to_id_map is None:
             ############ 1.7 TODO
 
+            # could be correct to either concat answers together, or choose more popular answer .. the solution apparently uses majority
+
+            answers = []
+            for qid in self._vqa.getQuesIds():
+                subresult = [ans["answer"] for ans in self._vqa.loadQA(qid)[0]["answers"]]
+                answers.append(" ".join(subresult))
+
+            wordlist = self._create_word_list(answers)
+            self.answer_to_id_map = self._create_id_map(wordlist, answer_list_length)
 
             ############
-            raise NotImplementedError()
+            # raise NotImplementedError()
         else:
             self.answer_to_id_map = answer_to_id_map
 
@@ -73,10 +104,26 @@ class VqaDataset(Dataset):
         """
 
         ############ 1.4 TODO
+        result = []
+        for sentence in sentences:
+            tmp = sentence.lower()
+
+            # remove invalid chars
+            i = 0
+            while i < len(tmp):
+                while i < len(tmp) and (not (tmp[i].isalpha() or tmp[i] == " ")) :
+                    tmp = tmp[:i] + tmp[i+1:]
+                i += 1
+            # tmp = [s for s in tmp if (s.isalpha() or s == " ")]
+
+            tmp = str(tmp)
+            tmp = tmp.split(" ")
+            result+= tmp
+        return result
 
 
         ############
-        raise NotImplementedError()
+        # raise NotImplementedError()
 
 
     def _create_id_map(self, word_list, max_list_length):
@@ -91,17 +138,24 @@ class VqaDataset(Dataset):
 
         ############ 1.5 TODO
 
+        # stackoverflow.com/questions/48784908/numpy-unique-sort-based-on-counts
+        unique_strings, string_counts = np.unique(word_list, return_counts=True)
+        index_sort = np.argsort(-string_counts)
+        index_sort = index_sort[:max_list_length]
+        unique_strings = unique_strings[index_sort]
+        return {str_ : i for i, str_ in enumerate(unique_strings)}
 
         ############
-        raise NotImplementedError()
+        # raise NotImplementedError()
 
 
     def __len__(self):
         ############ 1.8 TODO
+        return len(self._vqa.getQuesIds())
 
 
         ############
-        raise NotImplementedError()
+        # raise NotImplementedError()
 
     def __getitem__(self, idx):
         """
@@ -114,17 +168,18 @@ class VqaDataset(Dataset):
 
         ############ 1.9 TODO
         # figure out the idx-th item of dataset from the VQA API
+        ques_id = self._vqa.getQuesIds()[idx]
 
         ############
 
         if self._cache_location is not None and self._pre_encoder is not None:
             # the caching and loading logic here
-            feat_path = os.path.join(self._cache_location, f'{image_id}.pt')
+            feat_path = os.path.join(self._cache_location, f'{idx//10}.pt')
             try:
                 image = torch.load(feat_path)
             except:
                 image_path = os.path.join(
-                    self._image_dir, self._image_filename_pattern.format(image_id))
+                    self._image_dir, self._image_filename_pattern.format(idx//10))
                 image = Image.open(image_path).convert('RGB')
                 image = self._transform(image).unsqueeze(0)
                 image = self._pre_encoder(image)[0]
@@ -133,16 +188,53 @@ class VqaDataset(Dataset):
             ############ 1.9 TODO
             # load the image from disk, apply self._transform (if not None)
 
+            # todo use imgstrpattern, imgdir, etc (don't hardcode)
+            image_id = self._vqa.loadQA(ques_id)[0]["image_id"]
+            # 12 digits of numeric
+            zeros = "0" * (12 - len(str(image_id)))
+            image_filename = f"train2014/COCO_train2014_{zeros}{image_id}.jpg"
+            image = Image.open(image_filename).convert('RGB')
+            # ipdb.set_trace()
+            # print(image.size, "imagesize")
+            # print(np.asarray(image).shape, "np asarray shape")
+            # if image.size[0] != 3:
+            #     print("invalid!!", image.size)
+                # ipdb.set_trace()
+            if self._transform:
+                image = self._transform(image)
+            else:
+                assert False
+                image = torchvision.transforms.ToTensor()(image)
+
             ############
-            raise NotImplementedError()
+            # raise NotImplementedError()
 
         ############ 1.9 TODO
         # load and encode the question and answers, convert to torch tensors
+        answers = scipy.stats.mode([ans["answer"] for ans in self._vqa.loadQA(ques_id)[0]["answers"]])
+        answers = answers[0].item()
+        # print("answers", answers)
+        # print("idmap result", self.answer_to_id_map[answers])
+        answers_tensor = torch.zeros(self.answer_list_length)
+        if answers in self.answer_to_id_map.keys():
+            answers_tensor[self.answer_to_id_map[answers]] = 1.
+
+        question = self.questions_dict[ques_id]
+        question_tensor = question
+        # question_tensor = torch.zeros(self.question_word_list_length)
+        # for word in questions:
+        #     i = self.question_word_to_id_map[q]
+        #     question_tensor[i] = 1.
 
         ############
-        return {
+        result =  {
             'idx': idx,
             'image': image,
             'question': question_tensor,
             'answers': answers_tensor
         }
+        # print(result)
+        # ipdb.set_trace()
+        if image.shape[0] != 3:
+            return None
+        return result

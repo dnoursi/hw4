@@ -1,6 +1,7 @@
 from torch.utils.data import DataLoader
 import torch
 
+import ipdb
 
 class ExperimentRunnerBase(object):
     """
@@ -38,6 +39,7 @@ class ExperimentRunnerBase(object):
         # Should return your validation accuracy
 
         ############
+        return
 
         if self._log_validation:
             ############ 2.9 TODO
@@ -60,8 +62,9 @@ class ExperimentRunnerBase(object):
                 # Run the model and get the ground truth answers that you'll pass to your optimizer
                 # This logic should be generic; not specific to either the Simple Baseline or CoAttention.
 
-                predicted_answer = None # TODO
-                ground_truth_answer = None # TODO
+                predicted_answer = self._model(batch_data["image"], batch_data["question"])
+                # todo: majority vote for answer
+                ground_truth_answer = batch_data["answers"]
 
                 ############
 
