@@ -1,18 +1,30 @@
 import argparse
 from student_code.simple_baseline_experiment_runner import SimpleBaselineExperimentRunner
 from student_code.coattention_experiment_runner import CoattentionNetExperimentRunner
-
+import wandb
 
 if __name__ == "__main__":
+
+    wandb.init(project="vlr4", reinit=True)
+
     # Feel free to add more args, or change/remove these.
     parser = argparse.ArgumentParser(description='Load VQA.')
     parser.add_argument('--model', type=str, choices=['simple', 'coattention'], default='simple')
-    parser.add_argument('--train_image_dir', type=str, default="./train2014")
-    parser.add_argument('--train_question_path', type=str, default = "./Questions_Train_mscoco/OpenEnded_mscoco_train2014_questions.json")
-    parser.add_argument('--train_annotation_path', type=str, default = "./mscoco_train2014_annotations.json")
-    parser.add_argument('--test_image_dir', type=str, default = "./test")
-    parser.add_argument('--test_question_path', type=str, default = "./Questions_Val_mscoco/OpenEnded_mscoco_val2014_questions.json")
-    parser.add_argument('--test_annotation_path', type=str, default = "./mscoco_val2014_annotations.json")
+
+    # parser.add_argument('--train_image_dir', type=str, default="./train2014")
+    # parser.add_argument('--train_question_path', type=str, default = "./Questions_Train_mscoco/OpenEnded_mscoco_train2014_questions.json")
+    # parser.add_argument('--train_annotation_path', type=str, default = "./mscoco_train2014_annotations.json")
+    # parser.add_argument('--test_image_dir', type=str, default = "./test")
+    # parser.add_argument('--test_question_path', type=str, default = "./Questions_Val_mscoco/OpenEnded_mscoco_val2014_questions.json")
+    # parser.add_argument('--test_annotation_path', type=str, default = "./mscoco_val2014_annotations.json")
+
+    parser.add_argument('--train_image_dir', type=str, default="/mnt/sda/vqa_dataset/train2014")
+    parser.add_argument('--train_question_path', type=str, default = "/mnt/sda/vqa_dataset/OpenEnded_mscoco_train2014_questions.json")
+    parser.add_argument('--train_annotation_path', type=str, default = "/mnt/sda/vqa_dataset/mscoco_train2014_annotations.json")
+    parser.add_argument('--test_image_dir', type=str, default = "/mnt/sda/vqa_dataset/val2014")
+    parser.add_argument('--test_question_path', type=str, default = "/mnt/sda/vqa_dataset/OpenEnded_mscoco_val2014_questions.json")
+    parser.add_argument('--test_annotation_path', type=str, default = "/mnt/sda/vqa_dataset/mscoco_val2014_annotations.json")
+
     parser.add_argument('--batch_size', type=int, default=100)
     parser.add_argument('--num_epochs', type=int, default=100)
     parser.add_argument('--num_data_loader_workers', type=int, default=10)

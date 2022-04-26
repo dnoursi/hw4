@@ -10,6 +10,7 @@ import numpy as np
 import scipy.stats
 import torchvision
 import ipdb
+from tqdm import tqdm
 
 class VqaDataset(Dataset):
     """
@@ -65,14 +66,14 @@ class VqaDataset(Dataset):
         else:
             self.question_word_to_id_map = question_word_to_id_map
 
-        for d in self._vqa.questions["questions"]:            
+        for d in tqdm(self._vqa.questions["questions"]):            
             question_str = d["question"]
-            question_result = torch.zeros(self.question_word_list_length)
-            for word in question_str.split(" "):
-                wordlower = word.lower()
-                if wordlower in self.question_word_to_id_map.keys():
-                    question_result[self.question_word_to_id_map[wordlower]] = 1.
-            self.questions_dict[d["question_id"]] = question_result # d["question"]
+            # question_result = torch.zeros(20, self.question_word_list_length)
+            # for i, word in enumerate(question_str.split(" ")):
+            #     wordlower = word.lower()
+            #     if wordlower in self.question_word_to_id_map.keys():
+            #         question_result[i][self.question_word_to_id_map[wordlower]] = 1.
+            self.questions_dict[d["question_id"]] = question_str # question_result # d["question"]
 
         # Create the answer map if necessary
         if answer_to_id_map is None:
@@ -173,13 +174,18 @@ class VqaDataset(Dataset):
         ############
 
         if self._cache_location is not None and self._pre_encoder is not None:
+            image_id = self._vqa.loadQA(ques_id)[0]["image_id"]
+            # 12 digits of numeric
+            zeros = "0" * (12 - len(str(image_id)))
+            image_id_str = zeros + str(image_id)
+
             # the caching and loading logic here
-            feat_path = os.path.join(self._cache_location, f'{idx//10}.pt')
+            feat_path = os.path.join(self._cache_location, f'{image_id_str}.pt')
             try:
                 image = torch.load(feat_path)
             except:
                 image_path = os.path.join(
-                    self._image_dir, self._image_filename_pattern.format(idx//10))
+                    self._image_dir, self._image_filename_pattern.format(image_id_str))
                 image = Image.open(image_path).convert('RGB')
                 image = self._transform(image).unsqueeze(0)
                 image = self._pre_encoder(image)[0]
@@ -190,9 +196,17 @@ class VqaDataset(Dataset):
 
             # todo use imgstrpattern, imgdir, etc (don't hardcode)
             image_id = self._vqa.loadQA(ques_id)[0]["image_id"]
+
             # 12 digits of numeric
             zeros = "0" * (12 - len(str(image_id)))
-            image_filename = f"train2014/COCO_train2014_{zeros}{image_id}.jpg"
+            # image_filename = f"{self._image_dir}/COCO_train2014_{zeros}{image_id}.jpg"
+            # image_id_str = zeros + str(idx//10)
+            image_id_str = zeros + str(image_id)
+
+            image_filename = os.path.join(
+                self._image_dir, self._image_filename_pattern.format(image_id_str))
+                # self._image_dir, self._image_filename_pattern.format(idx//10))
+
             image = Image.open(image_filename).convert('RGB')
             # ipdb.set_trace()
             # print(image.size, "imagesize")
@@ -219,8 +233,14 @@ class VqaDataset(Dataset):
         if answers in self.answer_to_id_map.keys():
             answers_tensor[self.answer_to_id_map[answers]] = 1.
 
-        question = self.questions_dict[ques_id]
-        question_tensor = question
+        question_str = self.questions_dict[ques_id]
+        question_result = torch.zeros(20, self.question_word_list_length)
+        for i, word in enumerate(question_str.split(" ")[:20]):
+            wordlower = word.lower()
+            if wordlower in self.question_word_to_id_map.keys():
+                question_result[i][self.question_word_to_id_map[wordlower]] = 1.
+        question_tensor = question_result
+
         # question_tensor = torch.zeros(self.question_word_list_length)
         # for word in questions:
         #     i = self.question_word_to_id_map[q]
@@ -229,12 +249,12 @@ class VqaDataset(Dataset):
         ############
         result =  {
             'idx': idx,
-            'image': image,
-            'question': question_tensor,
-            'answers': answers_tensor
+            'image': image, #.to(device = ("cuda" if torch.cuda.is_available() else "cpu")),
+            'question': question_tensor,#.to(device = ("cuda" if torch.cuda.is_available() else "cpu")),
+            'answers': answers_tensor,#.to(device = ("cuda" if torch.cuda.is_available() else "cpu"))
         }
         # print(result)
         # ipdb.set_trace()
-        if image.shape[0] != 3:
-            return None
+        # if image.shape[0] != 3:
+        #     return None
         return result

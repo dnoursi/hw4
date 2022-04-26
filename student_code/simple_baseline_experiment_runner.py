@@ -45,8 +45,8 @@ class SimpleBaselineExperimentRunner(ExperimentRunnerBase):
                                  image_filename_pattern="COCO_val2014_{}.jpg",
                                  transform=transform,
                                  ############ 2.4 TODO: fill in the arguments
-                                 question_word_to_id_map=None,
-                                 answer_to_id_map=None,
+                                 question_word_to_id_map=train_dataset.question_word_to_id_map,
+                                 answer_to_id_map=train_dataset.answer_to_id_map,
                                  ############
                                  )
 
@@ -62,6 +62,9 @@ class SimpleBaselineExperimentRunner(ExperimentRunnerBase):
 
         word_parameters = list(model.word_feature_extractor.parameters()) + \
         list(model.image_feature_extractor.parameters())
+
+        # word_parameters = list(model.word_feature_extractor.parameters()) 
+
           #list(model.googlenet_features.parameters()) + \
 
         self.word_optimizer = torch.optim.SGD(word_parameters, lr=0.8, momentum=0.9)
@@ -86,6 +89,9 @@ class SimpleBaselineExperimentRunner(ExperimentRunnerBase):
         self.word_optimizer.zero_grad()
         self.softmax_optimizer.zero_grad()
         loss.backward()
+
+        # clip gradnorm now!!
+
         self.word_optimizer.step()
         self.softmax_optimizer.step()
         return loss
